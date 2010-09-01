@@ -60,7 +60,7 @@ module ActiveRecord
             
       def initialize(name, default, sql_type = nil, null = true, sqlserver_options = {})
         @sqlserver_options = sqlserver_options.symbolize_keys
-        super(name, default, sql_type, null)
+        super(name.downcase, default, sql_type, null)
       end
       
       class << self
@@ -327,7 +327,7 @@ module ActiveRecord
       end
       
       def cs_equality_operator
-        @@cs_equality_operator || 'COLLATE Latin1_General_CS_AS_WS ='
+        @@cs_equality_operator || 'COLLATE Latin1_General_CI_AS_WS ='
       end
       
       
