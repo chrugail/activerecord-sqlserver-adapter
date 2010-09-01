@@ -29,7 +29,7 @@ module ActiveRecord
 
         def tables(name = nil)
           info_schema_query do
-            select_values "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME <> 'dtproperties'"
+            select_values "SELECT LOWER(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME <> 'dtproperties'"
           end
         end
 
@@ -47,7 +47,7 @@ module ActiveRecord
             else
               name    = index[:index_name]
               unique  = index[:index_description] =~ /unique/
-              columns = index[:index_keys].split(',').map do |column|
+              columns = index[:index_keys].downcase.split(',').map do |column|
                 column.strip!
                 column.gsub! '(-)', '' if column.ends_with?('(-)')
                 column
@@ -159,7 +159,7 @@ module ActiveRecord
         
         def views(name = nil)
           @sqlserver_views_cache ||= 
-            info_schema_query { select_values("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME NOT IN ('sysconstraints','syssegments')") }
+            info_schema_query { select_values("SELECT LOWER(TABLE_NAME) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME NOT IN ('sysconstraints','syssegments')") }
         end
         
         
@@ -173,8 +173,8 @@ module ActiveRecord
           table_name = unqualify_table_name(table_name)
           sql = %{
             SELECT
-            columns.TABLE_NAME as table_name,
-            columns.COLUMN_NAME as name,
+            LOWER(columns.TABLE_NAME) as table_name,
+            LOWER(columns.COLUMN_NAME) as name,
             columns.DATA_TYPE as type,
             columns.COLUMN_DEFAULT as default_value,
             columns.NUMERIC_SCALE as numeric_scale,
@@ -267,9 +267,9 @@ module ActiveRecord
         
         def get_table_name(sql)
           if sql =~ /^\s*insert\s+into\s+([^\(\s]+)\s*|^\s*update\s+([^\(\s]+)\s*/i
-            $1 || $2
+            $1.downcase || $2.downcase
           elsif sql =~ /from\s+([^\(\s]+)\s*/i
-            $1
+            $1.downcase
           else
             nil
           end
