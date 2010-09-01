@@ -1,3 +1,9 @@
+This fork will force lowercase table names and lowercase field names. If your database is case insensitive, it will make it ActiveRecord friendly.
+
+Thanks to metaskills for the activerecord-sqlserver-adapter itself and dmajkic for his fork.
+This fork is a rails 3 compatible version of dmajkic's fork. 
+
+Below is original README. 
 
 == SQL Server 2005 and 2008 Adapter For ActiveRecord
 
