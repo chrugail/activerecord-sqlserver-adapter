@@ -262,7 +262,7 @@ module ActiveRecord
                      row = handle.fetch
                      row ? [row] : [[]]                     
                    end
-            names = handle.columns(true).map{ |c| c.name }
+            names = handle.columns(true).map{ |c| c.name.downcase }
             names_and_values = []
             rows.each do |row|
               h = {}
