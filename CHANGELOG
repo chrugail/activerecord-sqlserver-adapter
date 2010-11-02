@@ -1,5 +1,39 @@
 
-MASTER
+* master * 
+
+
+* 3.0.5 *
+
+* Fixed native database type memoization, now at connection instance level. Fix #execute_procedure for :dblib mode to return indifferent access rows too.
+
+* Make login timeout and query timeout backward database.yml friendly for :dblib mode.
+
+
+* 3.0.4 *
+
+* Add multiple results set support with #execute_procedure for :dblib mode. [Ken Collins]
+
+* Simplify encoding support. [Ken Collins]
+
+* Add binary timestamp datatype handling. [Erik Bryn]
+
+
+* 3.0.3
+
+* Add TinyTDS/dblib connection mode. [Ken Collins]
+
+
+* 3.0.2
+
+* Fix DSN'less code. [Erik Bryn]
+
+
+* 3.0.1
+
+* Support DSN'less connections. Resolves ticket 38. 
+
+* Support upcoming ruby odbc 0.99992
+
 
 * 3.0.0
 

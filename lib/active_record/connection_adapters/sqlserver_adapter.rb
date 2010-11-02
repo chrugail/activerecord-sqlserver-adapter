@@ -20,6 +20,9 @@ module ActiveRecord
       config.reverse_merge! :mode => :odbc, :host => 'localhost', :username => 'sa', :password => ''
       mode = config[:mode].to_s.downcase.underscore.to_sym
       case mode
+      when :dblib
+        raise ArgumentError, 'Missing :dataserver configuration.' unless config.has_key?(:dataserver)
+        require_library_or_gem 'tiny_tds'
       when :odbc
         raise ArgumentError, 'Missing :dsn configuration.' unless config.has_key?(:dsn)
         if RUBY_VERSION < '1.9'
@@ -65,36 +68,14 @@ module ActiveRecord
       
       class << self
         
-        def string_to_utf8_encoding(value)
-          value.force_encoding('UTF-8') rescue value
-        end
-        
         def string_to_binary(value)
-          value = value.dup.force_encoding(Encoding::BINARY) if value.respond_to?(:force_encoding)
          "0x#{value.unpack("H*")[0]}"
         end
         
         def binary_to_string(value)
-          value = value.dup.force_encoding(Encoding::BINARY) if value.respond_to?(:force_encoding)
           value =~ /[^[:xdigit:]]/ ? value : [value].pack('H*')
         end
         
-      end
-      
-      def type_cast(value)
-        if value && type == :string && is_utf8?
-          self.class.string_to_utf8_encoding(value)
-        else
-          super
-        end
-      end
-      
-      def type_cast_code(var_name)
-        if type == :string && is_utf8?
-          "#{self.class.name}.string_to_utf8_encoding(#{var_name})"
-        else
-          super
-        end
       end
       
       def is_identity?
@@ -102,7 +83,7 @@ module ActiveRecord
       end
       
       def is_utf8?
-        sql_type =~ /nvarchar|ntext|nchar/i
+        @sql_type =~ /nvarchar|ntext|nchar/i
       end
       
       def default_function
@@ -153,6 +134,7 @@ module ActiveRecord
           when /uniqueidentifier/i  then :string
           when /datetime/i          then simplified_datetime
           when /varchar\(max\)/     then :text
+          when /timestamp/          then :binary
           else super
         end
       end
@@ -181,9 +163,12 @@ module ActiveRecord
       include Sqlserver::Errors
       
       ADAPTER_NAME                = 'SQLServer'.freeze
-      VERSION                     = '3.0.0'.freeze
+      VERSION                     = '3.0.5'.freeze
       DATABASE_VERSION_REGEXP     = /Microsoft SQL Server\s+(\d{4})/
       SUPPORTED_VERSIONS          = [2005,2008].freeze
+      
+      attr_reader :database_version, :database_year,
+                  :connection_supports_native_types
       
       cattr_accessor :native_text_database_type, :native_binary_database_type, :native_string_database_type,
                      :log_info_schema_queries, :enable_default_unicode_types, :auto_connect,
@@ -192,10 +177,12 @@ module ActiveRecord
       def initialize(logger,config)
         @connection_options = config
         connect
-        super(raw_connection, logger)
+        super(@connection, logger)
+        @database_version = info_schema_query { select_value('SELECT @@version') }
+        @database_year = DATABASE_VERSION_REGEXP.match(@database_version)[1].to_i rescue 0
         initialize_sqlserver_caches
         use_database
-        unless SUPPORTED_VERSIONS.include?(database_year)
+        unless SUPPORTED_VERSIONS.include?(@database_year)
           raise NotImplementedError, "Currently, only #{SUPPORTED_VERSIONS.to_sentence} are supported."
         end
       end
@@ -236,6 +223,15 @@ module ActiveRecord
       # === Abstract Adapter (Connection Management) ================== #
       
       def active?
+        connected = case @connection_options[:mode]
+                    when :dblib
+                      !@connection.closed?
+                    when :odbc
+                      true
+                    else :adonet
+                      true
+                    end
+        return false if !connected
         raw_connection_do("SELECT 1")
         true
       rescue *lost_connection_exceptions
@@ -249,11 +245,13 @@ module ActiveRecord
       end
 
       def disconnect!
-        case connection_mode
+        case @connection_options[:mode]
+        when :dblib
+          @connection.close rescue nil
         when :odbc
-          raw_connection.disconnect rescue nil
+          @connection.disconnect rescue nil
         else :adonet
-          raw_connection.close rescue nil
+          @connection.close rescue nil
         end
       end
       
@@ -274,24 +272,16 @@ module ActiveRecord
       
       # === SQLServer Specific (DB Reflection) ======================== #
       
-      def database_version
-        @database_version ||= info_schema_query { select_value('SELECT @@version') }
-      end
-      
-      def database_year
-        DATABASE_VERSION_REGEXP.match(database_version)[1].to_i
-      end
-      
       def sqlserver?
         true
       end
       
       def sqlserver_2005?
-        database_year == 2005
+        @database_year == 2005
       end
       
       def sqlserver_2008?
-        database_year == 2008
+        @database_year == 2008
       end
       
       def version
@@ -299,7 +289,7 @@ module ActiveRecord
       end
       
       def inspect
-        "#<#{self.class} version: #{version}, year: #{database_year}, connection_options: #{@connection_options.inspect}>"
+        "#<#{self.class} version: #{version}, year: #{@database_year}, connection_options: #{@connection_options.inspect}>"
       end
       
       def auto_connect
@@ -352,10 +342,43 @@ module ActiveRecord
       
       def connect
         config = @connection_options
-        @connection = case connection_mode
+        @connection = case @connection_options[:mode]
+                      when :dblib
+                        appname = config[:appname] || Rails.application.class.name.split('::').first rescue nil
+                        login_timeout = config[:login_timeout].present? ? config[:login_timeout].to_i : nil
+                        timeout = config[:timeout].present? ? config[:timeout].to_i/1000 : nil
+                        encoding = config[:encoding].present? ? config[:encoding] : nil
+                        TinyTds::Client.new({ 
+                          :dataserver    => config[:dataserver],
+                          :username      => config[:username],
+                          :password      => config[:password],
+                          :database      => config[:database],
+                          :appname       => appname,
+                          :login_timeout => login_timeout,
+                          :timeout       => timeout,
+                          :encoding      => encoding
+                        }).tap do |client|
+                          client.execute("SET ANSI_DEFAULTS ON").do
+                          client.execute("SET IMPLICIT_TRANSACTIONS OFF").do
+                          client.execute("SET CURSOR_CLOSE_ON_COMMIT OFF").do
+                        end
                       when :odbc
                         odbc = ['::ODBC','::ODBC_UTF8','::ODBC_NONE'].detect{ |odbc_ns| odbc_ns.constantize rescue nil }.constantize
-                        odbc.connect config[:dsn], config[:username], config[:password]
+                        if config[:dsn].include?(';')
+                          driver = odbc::Driver.new.tap do |d|
+                            d.name = config[:dsn_name] || 'Driver1'
+                            d.attrs = config[:dsn].split(';').map{ |atr| atr.split('=') }.reject{ |kv| kv.size != 2 }.inject({}){ |h,kv| k,v = kv ; h[k] = v ; h }
+                          end
+                          odbc::Database.new.drvconnect(driver)
+                        else
+                          odbc.connect config[:dsn], config[:username], config[:password]
+                        end.tap do |c|
+                          if c.respond_to?(:use_time)
+                            c.use_time = true
+                            c.use_utc = ActiveRecord::Base.default_timezone == :utc
+                            @connection_supports_native_types = true
+                          end
+                        end
                       when :adonet
                         System::Data::SqlClient::SqlConnection.new.tap do |connection|
                           connection.connection_string = System::Data::SqlClient::SqlConnectionStringBuilder.new.tap do |cs|
@@ -410,10 +433,6 @@ module ActiveRecord
         false
       ensure
         @auto_connecting = false
-      end
-      
-      def connection_mode
-        @connection_options[:mode]
       end
             
     end #class SQLServerAdapter < AbstractAdapter

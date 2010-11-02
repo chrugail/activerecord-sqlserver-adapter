@@ -70,16 +70,6 @@ class AdapterTestSqlserver < ActiveRecord::TestCase
         assert_contains @supported_version, @connection.database_year
       end
       
-      should 'return true to #sqlserver_2005?' do
-        @connection.stubs(:database_version).returns(@sqlserver_2005_string)
-        assert @connection.sqlserver_2005?
-      end
-      
-      should 'return true to #sqlserver_2008?' do
-        @connection.stubs(:database_version).returns(@sqlserver_2008_string)
-        assert @connection.sqlserver_2008?
-      end
-      
     end
     
     context 'for #unqualify_table_name and #unqualify_db_name' do
@@ -202,13 +192,13 @@ class AdapterTestSqlserver < ActiveRecord::TestCase
 
         should 'find 003 millisecond in the DB with before and after casting' do
           existing_003 = SqlServerChronic.find_by_datetime!(@db_datetime_003)
-          assert_equal @db_datetime_003, existing_003.datetime_before_type_cast
+          assert_equal @db_datetime_003, existing_003.datetime_before_type_cast if existing_003.datetime_before_type_cast.is_a?(String)
           assert_equal 3000, existing_003.datetime.usec, 'A 003 millisecond in SQL Server is 3000 microseconds'
         end
 
         should 'find 123 millisecond in the DB with before and after casting' do
           existing_123 = SqlServerChronic.find_by_datetime!(@db_datetime_123)
-          assert_equal @db_datetime_123, existing_123.datetime_before_type_cast
+          assert_equal @db_datetime_123, existing_123.datetime_before_type_cast if existing_123.datetime_before_type_cast.is_a?(String)
           assert_equal 123000, existing_123.datetime.usec, 'A 123 millisecond in SQL Server is 123000 microseconds'
         end
 
@@ -219,14 +209,14 @@ class AdapterTestSqlserver < ActiveRecord::TestCase
         should 'truncate 123456 usec to just 123 in the DB cast back to 123000' do
           @time.stubs(:usec).returns(123456)
           saved = SqlServerChronic.create!(:datetime => @time).reload
-          assert_equal '123', saved.datetime_before_type_cast.split('.')[1]
+          assert_equal '123', saved.datetime_before_type_cast.split('.')[1] if saved.datetime_before_type_cast.is_a?(String)
           assert_equal 123000, saved.datetime.usec
         end
         
         should 'truncate 3001 usec to just 003 in the DB cast back to 3000' do
           @time.stubs(:usec).returns(3001)
           saved = SqlServerChronic.create!(:datetime => @time).reload
-          assert_equal '003', saved.datetime_before_type_cast.split('.')[1]
+          assert_equal '003', saved.datetime_before_type_cast.split('.')[1] if saved.datetime_before_type_cast.is_a?(String)
           assert_equal 3000, saved.datetime.usec
         end
         

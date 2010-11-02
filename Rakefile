@@ -22,7 +22,7 @@ task :test => ['test:odbc']
 
 namespace :test do
   
-  ['odbc','adonet'].each do |mode|
+  ['dblib','odbc','adonet'].each do |mode|
     
     Rake::TestTask.new(mode) do |t|
       t.libs = test_libs(mode)
@@ -31,20 +31,13 @@ namespace :test do
     end
     
   end
-
-  desc 'Test without unicode types enabled, uses ODBC mode.'
-  task :non_unicode_types do
-    ENV['ENABLE_DEFAULT_UNICODE_TYPES'] = 'false'
-    test = Rake::Task['test:odbc']
-    test.invoke
-  end
   
 end
 
 
 namespace :profile do
   
-  ['odbc','adonet'].each do |mode|
+  ['dblib','odbc','adonet'].each do |mode|
     namespace mode.to_sym do
       
       Dir.glob("test/profile/*_profile_case.rb").sort.each do |test_file|
@@ -68,11 +61,11 @@ end
 namespace :rvm do
   
   RUBIES = {
-    'ruby-1.8.6'      => {:alias => 'sqlsvr186', :odbc => '0.99991'},
-    'ruby-1.8.7'      => {:alias => 'sqlsvr187', :odbc => '0.99991'},
-    'ruby-1.9.1'      => {:alias => 'sqlsvr191', :odbc => '0.99991'},
-    'ruby-1.9.2'      => {:alias => 'sqlsvr192', :odbc => '0.99992pre4'},
-    'ree-1.8.7'       => {:alias => 'sqlsvrree', :odbc => '0.99991'}
+    'ruby-1.8.6'      => {:alias => 'sqlsvr186', :odbc => '0.99992'},
+    'ruby-1.8.7'      => {:alias => 'sqlsvr187', :odbc => '0.99992'},
+    'ruby-1.9.1'      => {:alias => 'sqlsvr191', :odbc => '0.99992'},
+    'ruby-1.9.2'      => {:alias => 'sqlsvr192', :odbc => '0.99992'},
+    'ree-1.8.7'       => {:alias => 'sqlsvrree', :odbc => '0.99992'}
   }
   
   task :setup do

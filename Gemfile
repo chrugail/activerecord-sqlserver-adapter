@@ -3,6 +3,7 @@ source :rubygems
 
 gemspec :path => ENV['RAILS_SOURCE']
 gem 'arel', :path => ENV['AREL'] if ENV['AREL']
+gem 'tiny_tds', :path => ENV['TINYTDS_SOURCE'] if ENV['TINYTDS_SOURCE']
 
 
 group :development do
@@ -12,7 +13,6 @@ group :development do
   platforms :mri_18 do
     gem 'ruby-prof', '0.9.1'
     gem 'ruby-debug', '0.10.3'
-    gem 'memprof', '0.3.6'
   end
 end
 
